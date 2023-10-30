@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "541749260820",
+    "project_id": "pontos-turisticos-2d892",
+    "storage_bucket": "pontos-turisticos-2d892.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:541749260820:android:eef80b7643ee3ebb582d01",
+        "android_client_info": {
+          "package_name": "com.example.lugares_orlando"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "541749260820-9hipk06qqj4e422hdl0414oqokknf9pv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.lugares_orlando",
+            "certificate_hash": "a2238ae71c57063bb95015447b5f019e8fee4ad5"
+          }
+        },
+        {
+          "client_id": "541749260820-iba90sirpfddlnr6320o997ifscicrh5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCFlp4e0eAoAQ4Uyrh2F-q-gaJjDyYnSZ4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "541749260820-iba90sirpfddlnr6320o997ifscicrh5.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

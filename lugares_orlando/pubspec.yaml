@@ -1,0 +1,92 @@
+name: lugares_orlando
+description: A new Flutter project.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.3 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  flat_list: ^0.1.14
+  provider: ^6.0.0
+  page_view_dot_indicator: ^2.1.0
+  google_sign_in: ^6.0.2
+  fluttertoast: ^8.2.1
+  intl: ^0.17.0
+  share_plus: ^6.3.0
+  keyboard_visibility_pro: ^0.0.1
+  
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/json/feed.json
+    - assets/json/comentarios.json
+    - assets/imgs/id1-a.jpg
+    - assets/imgs/id1-b.jpg
+    - assets/imgs/id1-c.jpg
+    - assets/imgs/id2-a.jpg
+    - assets/imgs/id2-b.jpg
+    - assets/imgs/id2-c.jpg
+    - assets/imgs/id3-a.jpg
+    - assets/imgs/id3-b.jpg
+    - assets/imgs/id3-c.jpg
+    - assets/imgs/id4-a.jpg
+    - assets/imgs/id4-b.jpg
+    - assets/imgs/id4-c.jpg
+    - assets/imgs/id5-a.jpg
+    - assets/imgs/id5-b.jpg
+    - assets/imgs/id5-c.jpg
+    - assets/imgs/id6-a.jpg
+    - assets/imgs/id6-b.jpg
+    - assets/imgs/id6-c.jpg
+    - assets/imgs/id7-a.jpg
+    - assets/imgs/id7-b.jpg
+    - assets/imgs/id7-c.jpg
+    - assets/imgs/id8-a.jpg
+    - assets/imgs/id8-b.jpg
+    - assets/imgs/id8-c.jpg
+    - assets/imgs/id9-a.jpg
+    - assets/imgs/id9-b.jpg
+    - assets/imgs/id9-c.jpg
+    - assets/imgs/id10-a.jpg
+    - assets/imgs/id10-b.jpg
+    - assets/imgs/id10-c.jpg
+    - assets/imgs/id11-a.jpg
+    - assets/imgs/id11-b.jpg
+    - assets/imgs/id11-c.jpg
+    - assets/imgs/id12-a.jpg
+    - assets/imgs/id12-b.jpg
+    - assets/imgs/id12-c.jpg
+    - assets/imgs/id13-a.jpg
+    - assets/imgs/id13-b.jpg
+    - assets/imgs/id13-c.jpg
+    - assets/imgs/id14-a.jpg
+    - assets/imgs/id14-b.jpg
+    - assets/imgs/id14-c.jpg
+    - assets/imgs/id15-a.jpg
+    - assets/imgs/id15-b.jpg
+    - assets/imgs/id15-c.jpg
+    - assets/imgs/id16-a.jpg
+    - assets/imgs/id16-b.jpg
+    - assets/imgs/id16-c.jpg
+    - assets/imgs/id17-a.jpg
+    - assets/imgs/id17-b.jpg
+    - assets/imgs/id17-c.jpg
+    - assets/imgs/id18-a.jpg
+    - assets/imgs/id18-b.jpg
+    - assets/imgs/id18-c.jpg
+    - assets/imgs/id19-a.jpg
+    - assets/imgs/id19-b.jpg
+    - assets/imgs/id19-c.jpg
+    - assets/imgs/id20-a.jpg
+    - assets/imgs/id20-b.jpg
+    - assets/imgs/id20-c.jpg
