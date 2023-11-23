@@ -1,12 +1,12 @@
-import 'dart:convert';
-
+// ignore_for_file: constant_identifier_names
 import 'package:flat_list/flat_list.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:keyboard_visibility_pro/keyboard_visibility_pro.dart';
+import 'package:lugares_orlando/apis/servicos.dart';
 import 'package:page_view_dot_indicator/page_view_dot_indicator.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 import '../estado.dart';
 
@@ -17,12 +17,9 @@ class Detalhes extends StatefulWidget {
   State<StatefulWidget> createState() => DetalhesState();
 }
 
-const tamanhoDaPagina = 4;
+const TAMANHO_DA_PAGINA = 4;
 
 class DetalhesState extends State<Detalhes> {
-  late dynamic _feedEstatico;
-  late dynamic _comentariosEstaticos;
-
   late PageController _controladorSlides;
   late int _slideSelecionado;
 
@@ -39,12 +36,22 @@ class DetalhesState extends State<Detalhes> {
   bool _curtiu = false;
   bool _tecladoVisivel = false;
 
+  late ServicoLugares _servicoLugares;
+  late ServicoCurtidas _servicoCurtidas;
+  late ServicoComentarios _servicoComentarios;
+
   @override
   void initState() {
-    _lerBancoEstatico();
     _iniciarSlides();
 
     _controladorNovoComentario = TextEditingController();
+
+    _servicoLugares = ServicoLugares();
+    _servicoCurtidas = ServicoCurtidas();
+    _servicoComentarios = ServicoComentarios();
+
+    _carregarLugar();
+    _carregarComentarios();
 
     super.initState();
   }
@@ -54,25 +61,20 @@ class DetalhesState extends State<Detalhes> {
     _controladorSlides = PageController(initialPage: _slideSelecionado);
   }
 
-  Future<void> _lerBancoEstatico() async {
-    String stringJson = await rootBundle.loadString('assets/json/feed.json');
-    _feedEstatico = await json.decode(stringJson);
-
-    stringJson = await rootBundle.loadString('assets/json/comentarios.json');
-    _comentariosEstaticos = await json.decode(stringJson);
-
-    _carregarLugar();
-    _carregarComentarios();
-  }
-
   void _carregarLugar() {
-    _lugar = _feedEstatico['pontos_turisticos']
-        .firstWhere((lugar) => lugar['_id'] == estadoApp.idLugar);
+    _servicoLugares.findLugar(estadoApp.idLugar).then((lugar) {
+      _lugar = lugar;
 
-    setState(() {
-      _temLugar = _lugar != null;
+      _servicoCurtidas
+          .curtiu(estadoApp.usuario!, estadoApp.idLugar)
+          .then((curtiu) {
+        setState(() {
+          _temLugar = _lugar != null;
+          _curtiu = curtiu;
 
-      _carregandoComentarios = false;
+          _carregandoComentarios = false;
+        });
+      });
     });
   }
 
@@ -81,26 +83,16 @@ class DetalhesState extends State<Detalhes> {
       _carregandoComentarios = true;
     });
 
-    var maisComentarios = [];
-    _comentariosEstaticos['comentarios'].where((item) {
-      return item['feed_correspondente'] == estadoApp.idLugar;
-    }).forEach((item) {
-      maisComentarios.add(item);
-    });
+    _servicoComentarios
+        .getComentarios(estadoApp.idLugar, _proximaPagina, TAMANHO_DA_PAGINA)
+        .then((comentarios) {
+      setState(() {
+        _comentarios.addAll(comentarios);
+        _temComentarios = _comentarios.isNotEmpty;
+        _proximaPagina += 1;
 
-    final totalDeComentariosParaCarregar = _proximaPagina * tamanhoDaPagina;
-    if (maisComentarios.length >= totalDeComentariosParaCarregar) {
-      maisComentarios =
-          maisComentarios.sublist(0, totalDeComentariosParaCarregar);
-    }
-
-    setState(() {
-      _temComentarios = maisComentarios.isNotEmpty;
-      _comentarios = maisComentarios;
-
-      _proximaPagina += 1;
-
-      _carregandoComentarios = false;
+        _carregandoComentarios = false;
+      });
     });
   }
 
@@ -112,18 +104,26 @@ class DetalhesState extends State<Detalhes> {
   }
 
   void _adicionarComentario() {
-    if (estadoApp.usuario != null) {
-      final comentario = {
-        "conteudo": _controladorNovoComentario.text, 
-        "nome": estadoApp.usuario!.nome,        
-        "data_e_horario": DateTime.now().toString(),
-        "feed_correspondente": estadoApp.idLugar
-      };
+    _servicoComentarios
+        .adicionar(estadoApp.idLugar, estadoApp.usuario!,
+            _controladorNovoComentario.text)
+        .then((resultado) {
+      if (resultado["situacao"] == "ok") {
+        Fluttertoast.showToast(msg: "comentário adicionado");
 
-      setState(() {
-        _comentarios.insert(0, comentario);
-      });
-    }
+        _atualizarComentarios();
+      }
+    });
+  }
+
+  void _removerComentario(int idComentario) {
+    _servicoComentarios.remover(idComentario).then((resultado) {
+      if (resultado["situacao"] == "ok") {
+        Fluttertoast.showToast(msg: "comentário removido com sucesso");
+
+        _atualizarComentarios();
+      }
+    });
   }
 
   String _formatarData(String dataHora) {
@@ -137,7 +137,7 @@ class DetalhesState extends State<Detalhes> {
     return const Center(
         child: Padding(
             padding: EdgeInsets.all(14.0),
-            child: Text('Não existem comentários sobre este lugar',
+            child: Text('não existem comentários sobre este lugar',
                 style: TextStyle(color: Colors.black, fontSize: 14))));
   }
 
@@ -180,9 +180,14 @@ class DetalhesState extends State<Detalhes> {
               },
               onEndReachedDelta: 200,
               buildItem: (item, int index) {
+                bool usuarioLogadoComentou = estadoApp.temUsuarioLogado() &&
+                    item["conta"] == estadoApp.usuario!.email;
+
                 return Dismissible(
-                    key: Key(_comentarios[index]['_id'].toString()),
-                    direction: DismissDirection.endToStart,
+                    key: UniqueKey(),
+                    direction: usuarioLogadoComentou
+                        ? DismissDirection.endToStart
+                        : DismissDirection.none,
                     background: Container(
                         color: Colors.red,
                         child: const Align(
@@ -192,23 +197,17 @@ class DetalhesState extends State<Detalhes> {
                                 child: Icon(Icons.delete)))),
                     onDismissed: (direction) {
                       if (direction == DismissDirection.endToStart) {
-                        final comentario = _comentarios[index];
-                        setState(() {
-                          _comentarios.removeAt(index);
-                        });
-
                         showDialog(
                             context: context,
                             builder: (BuildContext contexto) {
                               return AlertDialog(
-                                title:
-                                    const Text("Deseja apagar o comentário?"),
+                                title: const Text("deseja apagar o comentário?",
+                                    style: TextStyle(fontSize: 14)),
                                 actions: [
                                   TextButton(
                                       onPressed: () {
                                         setState(() {
-                                          _comentarios.insert(
-                                              index, comentario);
+                                          _carregarComentarios();
                                         });
 
                                         Navigator.of(contexto).pop();
@@ -216,7 +215,8 @@ class DetalhesState extends State<Detalhes> {
                                       child: const Text("não")),
                                   TextButton(
                                       onPressed: () {
-                                        setState(() {});
+                                        _removerComentario(
+                                            item["comentario_id"]);
 
                                         Navigator.of(contexto).pop();
                                       },
@@ -227,37 +227,40 @@ class DetalhesState extends State<Detalhes> {
                       }
                     },
                     child: Card(
+                        color: usuarioLogadoComentou
+                            ? Colors.white
+                            : Colors.black12,
                         child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                            padding: const EdgeInsets.all(6.0),
-                            child: Text(
-                              _comentarios[index]["conteudo"],
-                              style: const TextStyle(fontSize: 12),
-                            )),
-                        Padding(
-                            padding: const EdgeInsets.only(bottom: 6.0),
-                            child: Row(
-                              children: [
-                                Padding(
-                                    padding: const EdgeInsets.only(
-                                        right: 10.0, left: 6.0),
-                                    child: Text(
-                                      _comentarios[index]["nome"],
-                                      style: const TextStyle(fontSize: 12),
-                                    )),
-                                Padding(
-                                    padding: const EdgeInsets.only(right: 10.0),
-                                    child: Text(
-                                      _formatarData(
-                                          _comentarios[index]["data_e_horario"]),
-                                      style: const TextStyle(fontSize: 12),
-                                    )),
-                              ],
-                            )),
-                      ],
-                    )));
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Text(
+                                  item["comentario"],
+                                  style: const TextStyle(fontSize: 12),
+                                )),
+                            Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0),
+                                child: Row(
+                                  children: [
+                                    Padding(
+                                        padding: const EdgeInsets.only(
+                                            right: 10.0, left: 6.0),
+                                        child: Text(
+                                          item["nome"],
+                                          style: const TextStyle(fontSize: 12),
+                                        )),
+                                    Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 10.0),
+                                        child: Text(
+                                          _formatarData(item["data"]),
+                                          style: const TextStyle(fontSize: 12),
+                                        )),
+                                  ],
+                                )),
+                          ],
+                        )));
               },
               listEmptyWidget: Container(
                   alignment: Alignment.center,
@@ -267,142 +270,152 @@ class DetalhesState extends State<Detalhes> {
     ];
   }
 
-Widget _exibirLugar() {
-  List<Widget> widgets = [];
+  List<String> _imagensDoSlide() {
+    List<String> imagens = [];
 
-  if (!_tecladoVisivel) {
-    widgets.addAll([
-      SizedBox(
-        height: 230,
-        child: Stack(children: [
-          PageView.builder(
-            itemCount: _lugar['fotos'].length, // Quantidade de fotos do lugar
-            controller: _controladorSlides,
-            onPageChanged: (slide) {
-              setState(() {
-                _slideSelecionado = slide;
-              });
-            },
-            itemBuilder: (context, pagePosition) {
-              return Image.asset(
-                'assets/imgs/${_lugar["fotos"][pagePosition]}', // Caminho da imagem
-                fit: BoxFit.cover,
-              );
-            },
-          ),
-          Align(
-            alignment: Alignment.topRight,
-            child: Column(children: [
-              estadoApp.temUsuarioLogado()
-                  ? IconButton(
+    imagens.add(_lugar["imagem1"]);
+    if ((_lugar["imagem2"] as String).isNotEmpty) {
+      imagens.add(_lugar["imagem2"]);
+    }
+    if ((_lugar["imagem3"] as String).isNotEmpty) {
+      imagens.add(_lugar["imagem3"]);
+    }
+
+    return imagens;
+  }
+
+  Widget _exibirLugar() {
+    List<Widget> widgets = [];
+    final slides = _imagensDoSlide();
+
+    if (!_tecladoVisivel) {
+      widgets.addAll([
+        SizedBox(
+          height: 230,
+          child: Stack(children: [
+            PageView.builder(
+              itemCount: slides.length,
+              controller: _controladorSlides,
+              onPageChanged: (slide) {
+                setState(() {
+                  _slideSelecionado = slide;
+                });
+              },
+              itemBuilder: (context, pagePosition) {
+                return Image.network(
+                  caminhoArquivo(slides[pagePosition]),
+                  fit: BoxFit.cover,
+                );
+              },
+            ),
+            Align(
+                alignment: Alignment.topRight,
+                child: Column(children: [
+                  estadoApp.temUsuarioLogado()
+                      ? IconButton(
+                          onPressed: () {
+                            if (_curtiu) {
+                              _servicoCurtidas
+                                  .descurtir(
+                                      estadoApp.usuario!, estadoApp.idLugar)
+                                  .then((resultado) {
+                                if (resultado["situacao"] == "ok") {
+                                  Fluttertoast.showToast(
+                                      msg: "avaliação removida");
+
+                                  setState(() {
+                                    _carregarLugar();
+                                  });
+                                }
+                              });
+                            } else {
+                              _servicoCurtidas
+                                  .curtir(
+                                      estadoApp.usuario!, estadoApp.idLugar)
+                                  .then((resultado) {
+                                if (resultado["situacao"] == "ok") {
+                                  Fluttertoast.showToast(
+                                      msg: "obrigado pela sua avaliação");
+
+                                  setState(() {
+                                    _carregarLugar();
+                                  });
+                                }
+                              });
+                            }
+                          },
+                          icon: Icon(
+                              _curtiu ? Icons.favorite : Icons.favorite_border),
+                          color: Colors.red,
+                          iconSize: 32)
+                      : const SizedBox.shrink(),
+                  IconButton(
                       onPressed: () {
-                        if (_curtiu) {
-                          setState(() {
-                            _lugar['likes'] = _lugar['likes'] - 1;
-                            _curtiu = false;
-                          });
-                        } else {
-                          setState(() {
-                            _lugar['likes'] = _lugar['likes'] + 1;
-                            _curtiu = true;
-                          });
-                        }
+                        final texto =
+                            'Vamos para o ${_lugar["nome_lugar"]} em Orlando? \n\n\nBaixe o Pontos Turísticos - Orlando na PlayStore!';
+
+                        Share.share(texto);
                       },
-                      icon: Icon(
-                        _curtiu ? Icons.favorite : Icons.favorite_border,
-                      ),
-                      color: Colors.red,
+                      icon: const Icon(Icons.share),
+                      color: Colors.blue,
                       iconSize: 32)
-                  : const SizedBox.shrink(),
-              IconButton(
-                onPressed: () {
-                  final texto =
-                      'Vamos para o ${_lugar["nome"]} em Orlando? \n\n\nBaixe o Pontos Turísticos - Orlando na PlayStore!';
-                  Share.share(texto);
-                },
-                icon: const Icon(Icons.share),
-                color: Colors.blue,
-                iconSize: 32,
-              ),
-            ]),
-          ),
-        ]),
-      ),
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: PageViewDotIndicator(
-          currentItem: _slideSelecionado,
-          count: _lugar['fotos'].length, // Quantidade de fotos do lugar
-          unselectedColor: Colors.black26,
-          selectedColor: Colors.blue,
-          duration: const Duration(milliseconds: 200),
-          boxShape: BoxShape.circle,
+                ]))
+          ]),
         ),
-      ),
-      Card(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _temLugar
-                ? Padding(
-                    padding: const EdgeInsets.all(6.0),
-                    child: Text(
-                      _lugar["nome"],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  )
-                : const SizedBox.shrink(),
-            _temLugar
-                ? Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: Text(_lugar["descricao"],
-                        style: const TextStyle(fontSize: 12)),
-                  )
-                : const SizedBox.shrink(),
-            _temLugar
-                ? Padding(
-                    padding: const EdgeInsets.only(left: 8.0, bottom: 6.0),
-                    child: Row(
-                      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: PageViewDotIndicator(
+            currentItem: _slideSelecionado,
+            count: slides.length,
+            unselectedColor: Colors.black26,
+            selectedColor: Colors.blue,
+            duration: const Duration(milliseconds: 200),
+            boxShape: BoxShape.circle,
+          ),
+        ),
+        Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _temLugar
+                  ? Padding(
+                      padding: const EdgeInsets.all(10.0),
+                      child: Text(_lugar["descricao"],
+                          style: const TextStyle(fontSize: 12)))
+                  : const SizedBox.shrink(),
+              _temLugar
+                  ? Padding(
+                      padding: const EdgeInsets.only(left: 10.0, bottom: 6.0),
+                      child: Row(children: [
                         Text(
                           _lugar["entrada"],
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
+                              fontWeight: FontWeight.bold, fontSize: 12),
                         ),
                         Padding(
-                          padding: const EdgeInsets.only(left: 6.0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(
-                                Icons.favorite_rounded,
-                                color: Colors.red,
-                                size: 18,
-                              ),
-                              Text(
-                                _lugar["likes"].toString(),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ],
-        ),
-      ),
-    ]);
-  }
+                            padding: const EdgeInsets.only(left: 6.0),
+                            child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.favorite_rounded,
+                                    color: Colors.red,
+                                    size: 18,
+                                  ),
+                                  Text(
+                                    _lugar["curtidas"].toString(),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12),
+                                  ),
+                                ]))
+                      ]))
+                  : const SizedBox.shrink(),
+            ],
+          ),
+        )
+      ]);
+    }
     widgets.addAll(_exibirComentarios());
 
     return Scaffold(
@@ -410,6 +423,14 @@ Widget _exibirLugar() {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Row(children: [
+          Row(children: [
+            Padding(
+                padding: const EdgeInsets.only(left: 10.0, bottom: 5.0),
+                child: Text(
+                  _lugar["nome_lugar"],
+                  style: const TextStyle(fontSize: 15),
+                ))
+          ]),
           const Spacer(),
           GestureDetector(
             onTap: () {
@@ -440,7 +461,7 @@ Widget _exibirLugar() {
               child: const Icon(Icons.arrow_back))),
       const Material(
           color: Colors.transparent,
-          child: Text('Lugar não existe ou foi removido :-(',
+          child: Text('lugar não existe ou foi removido :-(',
               style: TextStyle(color: Colors.black, fontSize: 14))),
     ])));
   }

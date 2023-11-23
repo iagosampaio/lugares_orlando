@@ -1,11 +1,9 @@
-// ignore_for_file: avoid_print
-
-import 'dart:convert';
+// ignore_for_file: avoid_print, constant_identifier_names
 
 import 'package:flat_list/flat_list.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:lugares_orlando/apis/servicos.dart';
 import 'package:lugares_orlando/autenticador.dart';
 import 'package:lugares_orlando/componentes/card_lugar.dart';
 import 'package:lugares_orlando/estado.dart';
@@ -17,10 +15,9 @@ class Lugares extends StatefulWidget {
   State<StatefulWidget> createState() => LugaresState();
 }
 
-const tamanhoDaPagina = 4;
+const TAMANHO_DA_PAGINA = 4;
 
 class LugaresState extends State<Lugares> {
-  late dynamic _feedEstatico;
   List<dynamic> _lugares = [];
 
   String _filtro = "";
@@ -29,12 +26,15 @@ class LugaresState extends State<Lugares> {
   bool _carregando = false;
   int _proximaPagina = 1;
 
+  late ServicoLugares _servicoLugares;
+
   @override
   void initState() {
-    _lerFeedEstatico();
     _controladorFiltro = TextEditingController();
-
     _recuperarUsuarioLogado();
+
+    _servicoLugares = ServicoLugares();
+    _carregarLugares();
 
     super.initState();
   }
@@ -49,47 +49,34 @@ class LugaresState extends State<Lugares> {
     });
   }
 
-  Future<void> _lerFeedEstatico() async {
-    final stringJson = await rootBundle.loadString('assets/json/feed.json');
-    _feedEstatico = await json.decode(stringJson);
-
-    _carregarLugares();
-  }
-
   void _carregarLugares() {
     setState(() {
       _carregando = true;
     });
 
-    var maisLugares = [];
-
     if (_filtro.isNotEmpty) {
-      List<dynamic> lugares = _feedEstatico['pontos_turisticos'];
-      lugares.where((item) {
-        String nomeLugar = item['nome'];
-        String tipoEntrada = item['entrada'];
-        return nomeLugar.toLowerCase().contains(_filtro.toLowerCase()) ||
-        tipoEntrada.toLowerCase().contains(_filtro.toLowerCase());
-      }).forEach((item) {
-        maisLugares.add(item);
+      _servicoLugares
+          .findLugares(_proximaPagina, TAMANHO_DA_PAGINA, _filtro)
+          .then((lugares) {
+        setState(() {
+          _carregando = false;
+          _proximaPagina += 1;
+
+          _lugares.addAll(lugares);
+        });
       });
     } else {
-      maisLugares = _lugares;
-      final totalDeFeedsParaCarregar = _proximaPagina * tamanhoDaPagina;
-      if (_feedEstatico['pontos_turisticos'].length >= totalDeFeedsParaCarregar) {
-        maisLugares =
-            _feedEstatico['pontos_turisticos'].sublist(0, totalDeFeedsParaCarregar);
-      } else {
-        maisLugares = _feedEstatico['pontos_turisticos'];
-      }
+      _servicoLugares
+          .getLugares(_proximaPagina, TAMANHO_DA_PAGINA)
+          .then((lugares) {
+        setState(() {
+          _carregando = false;
+          _proximaPagina += 1;
+
+          _lugares.addAll(lugares);
+        });
+      });
     }
-
-    setState(() {
-      _carregando = false;
-      _proximaPagina += 1;
-
-      _lugares = maisLugares;
-    });
   }
 
   Future<void> _atualizarLugares() async {
@@ -111,6 +98,13 @@ class LugaresState extends State<Lugares> {
               padding: const EdgeInsets.all(10.0),
               child: TextField(
                   controller: _controladorFiltro,
+                  // usar onChanged quando a filtragem jah ocorrer enquanto o
+                  // usuario digitas
+                  // onChanged: (texto) {
+                  //   _filtro = texto;
+                  // },
+                  // usar onSubmitted quando a filtragem tiver que ocorrer
+                  // depois do usuario digitar e confirmar
                   onSubmitted: (texto) {
                     _filtro = texto;
 
@@ -127,7 +121,7 @@ class LugaresState extends State<Lugares> {
                         onTap: () {
                           Autenticador.logout().then((_) {
                             Fluttertoast.showToast(
-                                msg: "Você não está mais conectado.");
+                                msg: "você não está mais conectado");
 
                             setState(() {
                               estadoApp.onLogout();
@@ -139,7 +133,7 @@ class LugaresState extends State<Lugares> {
                         onTap: () {
                           Autenticador.login().then((usuario) {
                             Fluttertoast.showToast(
-                                msg: "Você foi conectado com sucesso.");
+                                msg: "você foi conectado com sucesso");
 
                             setState(() {
                               estadoApp.onLogin(usuario);
@@ -164,6 +158,8 @@ class LugaresState extends State<Lugares> {
           },
           onEndReachedDelta: 200,
           buildItem: (item, int index) {
+            print(item);
+
             return CardLugar(item);
           },
           listEmptyWidget: Container(
